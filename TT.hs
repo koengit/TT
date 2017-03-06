@@ -140,9 +140,16 @@ instance Subst FO where
 
 --------------------------------------------------------------------------------
 
+conjecture :: TT -> FO
+conjecture tt = removePairs (Exi prf (Var prf -: tt))
+ where
+  prf = "$proof"
+
 removePairs :: FO -> FO
 removePairs (All x p)
-  | isPair x p          = removePairs (removePairAll x p)
+  | isPair x p          = removePairs (removePair All x p)
+removePairs (Exi x p)
+  | isPair x p          = removePairs (removePair Exi x p)
 removePairs (All x p)   = All x (removePairs p)
 removePairs (Exi x p)   = Exi x (removePairs p)
 removePairs (p :&: q)   = removePairs p :&:  removePairs q
@@ -162,9 +169,9 @@ isPairTerm x (App f [t])
 isPairTerm x (App f ts) = all (isPairTerm x) ts
 isPairTerm x (Var y)    = x /= y
 
-removePairAll :: Name -> FO -> FO
-removePairAll x p
-  | x `elem` free p = All x0 (All x1 (rem p))
+removePair :: (Name -> FO -> FO) -> Name -> FO -> FO
+removePair quant x p
+  | x `elem` free p = quant x0 (quant x1 (rem p))
   | otherwise       = p
  where
   x0:x1:_ = fresh (names p)
