@@ -2,6 +2,8 @@ module TT where
 
 import Data.List( union, (\\), intercalate )
 
+--------------------------------------------------------------------------------
+
 type Name
   = String
 
@@ -43,21 +45,30 @@ instance Show FO where
   show (Atom h []) = h
   show (Atom h xs) = h ++ "(" ++ intercalate "," (map show xs) ++ ")"
 
-app :: Term -> Term -> Term
-app f x = App "$ap" [f,x]
+--------------------------------------------------------------------------------
+
+fo :: TT -> FO
+fo (Pi    x a b) = All x (proof x a b :=>: fo b)
+fo (Sigma x a b) = Exi x (proof x a b :&:  fo b)
+fo (Basic h ts)  = Atom h ts
+
+proof :: Name -> TT -> TT -> FO
+proof x a b
+  | x `elem` free b = Var x -: a
+  | otherwise       = fo a
+
+(-:) :: Term -> TT -> FO
+p -: Pi    x a b = error ("higher-order TT (" ++ show p ++ " : " ++ show (Pi x a b) ++ ")")
+p -: Sigma x a b = (pp p -: a) :&: (qq p -: subst [(x,pp p)] b)
+p -: Basic h ts
+  | isType h     = Atom h (ts ++ [p])
+  | otherwise    = Atom h ts
 
 pp, qq :: Term -> Term
 pp x = App "$p" [x]
 qq x = App "$q" [x]
 
 isType h = h `elem` ["man", "woman", "donkey"]
-
-(-:) :: Term -> TT -> FO
-p -: Pi    x a b = All x ((Var x -: a) :=>: (app p (Var x) -: b))
-p -: Sigma x a b = (pp p -: a) :&: (qq p -: subst [(x,pp p)] b)
-p -: Basic h ts
-  | isType h     = Atom h (ts ++ [p])
-  | otherwise    = Atom h ts
 
 class Subst a where
   free  :: a -> [Name]
@@ -141,9 +152,7 @@ instance Subst FO where
 --------------------------------------------------------------------------------
 
 conjecture :: TT -> FO
-conjecture tt = removePairs (Exi prf (Var prf -: tt))
- where
-  prf = "$proof"
+conjecture tt = removePairs (fo tt)
 
 removePairs :: FO -> FO
 removePairs (All x p)
@@ -190,13 +199,119 @@ removePair quant x p
 
 --------------------------------------------------------------------------------
 
-aManHasADonkey = Sigma "x"
-                   (Basic "man" [])
-                   (Sigma "y"
-                     (Basic "donkey" [])
-                     (Basic "has" [Var "x", Var "y"]))
+man       = Basic "man" []
+rich x    = Basic "rich" [x]
+donkey    = Basic "donkey" []
+have  x y = Basic "has" [x,y]
+beats x y = Basic "beats" [x,y]
 
-heBeatsIt p = Basic "beats" [pp p, pp (qq p)]
+aManHasADonkey = Sigma "x"
+                   man
+                   (Sigma "y"
+                     donkey
+                     (Var "x" `have` Var "y"))
+
+heBeatsIt p = pp p `beats` pp (qq p)
 
 ifAManHasADonkeyHeBeatsIt = Pi "c" aManHasADonkey (heBeatsIt (Var "c"))
 
+allMenHaveADonkey = Pi "x" man (Sigma "y" donkey (Var "x" `have` Var "y"))
+
+higherOrder = Pi "x" man (Pi "_r" (Pi "y" donkey (Var "x" `have` Var "y")) (rich (Var "x"))) 
+
+{-
+
+EXI p . ALL x . man(x) => ( donkey(fst(p@x)) & has(x,fst(p@x)) )
+
+--> { because p : _ -> (_,_) }
+
+EXI p0,p1 . ALL x . man(x) => ( donkey(p0@x) & has(x,p0@x) )
+
+--> { because p1 is not used }
+
+EXI p0 . ALL x . man(x) => ( donkey(p0@x) & has(x,p0@x) )
+
+--> { p0 becomes a top-level skolem function }
+
+ALL x . man(x) => ( donkey(sk(x)) & has(x,sk(x)) )
+
+-}
+
+{-
+
+EXI p . ALL f .
+    (ALL x . (man(x) => has(x,fst(f@x))))
+  =>
+    (ALL y . (man(y) => has(x,fst((p@f)@y))))
+
+-->
+
+EXI p . ALL f .
+    (ALL x . (man(x) => has(x,fst(f@x))))
+  =>
+    (ALL y . (man(y) => has(x,fst(p@(f,y)))))
+
+-->
+
+EXI p . ALL f0, f1 .
+    (ALL x . (man(x) => has(x,f0@x))))
+  =>
+    (ALL y . (man(y) => has(x,fst(p@(f0,f1,y)))))
+
+-->
+
+EXI p0 . ALL f0, f1 .
+    (ALL x . (man(x) => has(x,f0@x))))
+  =>
+    (ALL y . (man(y) => has(x,p0@(f0,f1,y))))
+
+-}
+
+--------------------------------------------------------------------------------
+
+{-
+data Type
+  = UNIT
+  | TERM
+  | Type :->: Type
+  | Type :*: Type
+ deriving ( Eq, Ord, Show )
+
+data Object
+  = U
+  | T Term
+  | F (Object -> Object)
+  | P Object Object
+
+app :: Object -> Object -> Object
+F f `app` x = f x
+
+pp, qq :: Object -> Object
+pp (x :*: _) = x
+qq (_ :*: y) = y
+
+quant :: (Term -> Form) -> Type -> [Name] -> (Object -> Form) -> Form
+quant qu t p =
+  -}
+
+--------------------------------------------------------------------------------
+
+writeTPTP :: FilePath -> FO -> IO ()
+writeTPTP file p = writeFile file $ unlines $
+  [ "fof(conj, conjecture, "
+  , "  " ++ pp p
+  , ")."
+  ]
+ where
+  pp (All x p)   = "![" ++ "V" ++ nm x ++ "]: " ++ pp p
+  pp (Exi x p)   = "?[" ++ "V" ++ nm x ++ "]: " ++ pp p
+  pp (p :&: q)   = "(" ++ pp p ++ " & " ++ pp q ++ ")"
+  pp (p :=>: q)  = "(" ++ pp p ++ " => " ++ pp q ++ ")"
+  pp (Atom h ts) = pt (App h ts)
+  
+  pt (App f []) = nm f
+  pt (App f ts) = nm f ++ "(" ++ intercalate "," (map pt ts) ++ ")"
+  pt (Var x)    = "V" ++ nm x
+  
+  nm = concatMap (\c -> if c == '$' then "sp_" else [c])
+  
