@@ -54,15 +54,23 @@ fo (Basic h ts)  = Atom h ts
 
 proof :: Name -> TT -> TT -> FO
 proof x a b
-  | x `elem` free b = Var x -: a
-  | otherwise       = fo a
+  | x `elem` free b || needsProof a = Var x -: a
+  | otherwise                       = fo a
+ where
+  needsProof (Pi    _ _ b) = needsProof b
+  needsProof (Sigma _ _ b) = needsProof b
+  needsProof (Basic h _)   = isType h
 
 (-:) :: Term -> TT -> FO
-p -: Pi    x a b = error ("higher-order TT (" ++ show p ++ " : " ++ show (Pi x a b) ++ ")")
+--p -: Pi    x a b = error ("higher-order TT (" ++ show p ++ " : " ++ show (Pi x a b) ++ ")")
+p -: Pi    x a b = All x ((Var x -: a) :=>: (ap p (Var x) -: b))
 p -: Sigma x a b = (pp p -: a) :&: (qq p -: subst [(x,pp p)] b)
 p -: Basic h ts
   | isType h     = Atom h (ts ++ [p])
   | otherwise    = Atom h ts
+
+ap :: Term -> Term -> Term
+ap f x = App "$ap" [f,x]
 
 pp, qq :: Term -> Term
 pp x = App "$p" [x]
@@ -218,6 +226,9 @@ ifAManHasADonkeyHeBeatsIt = Pi "c" aManHasADonkey (heBeatsIt (Var "c"))
 allMenHaveADonkey = Pi "x" man (Sigma "y" donkey (Var "x" `have` Var "y"))
 
 higherOrder = Pi "x" man (Pi "_r" (Pi "y" donkey (Var "x" `have` Var "y")) (rich (Var "x"))) 
+
+karttunen = Pi "f" (Pi "x" man (Sigma "y" donkey (have (Var "x") (Var "y"))))
+              (Sigma "u" man (beats (Var "u") (pp (ap (Var "f") (Var "u")))))
 
 {-
 
