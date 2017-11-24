@@ -1,6 +1,7 @@
 module TT where
 
 import Data.List( union, (\\), intercalate )
+import Data.Char( isUpper )
 
 --------------------------------------------------------------------------------
 
@@ -76,7 +77,7 @@ pp, qq :: Term -> Term
 pp x = App "$p" [x]
 qq x = App "$q" [x]
 
-isType h = h `elem` ["man", "woman", "donkey"]
+isType h = all isUpper (take 1 h)
 
 class Subst a where
   free  :: a -> [Name]
@@ -207,9 +208,9 @@ removePair quant x p
 
 --------------------------------------------------------------------------------
 
-man       = Basic "man" []
+man       = Basic "Man" []
 rich x    = Basic "rich" [x]
-donkey    = Basic "donkey" []
+donkey    = Basic "Donkey" []
 have  x y = Basic "has" [x,y]
 beats x y = Basic "beats" [x,y]
 
@@ -229,6 +230,26 @@ higherOrder = Pi "x" man (Pi "_r" (Pi "y" donkey (Var "x" `have` Var "y")) (rich
 
 karttunen = Pi "f" (Pi "x" man (Sigma "y" donkey (have (Var "x") (Var "y"))))
               (Sigma "u" man (beats (Var "u") (pp (ap (Var "f") (Var "u")))))
+
+everyCustomerPays =
+  Pi "x" customer (pay (Var "x"))
+
+customer = Basic "Customer" []
+company  = Basic "Company" []
+pay x    = Basic "pay" [x]
+
+facebook = App "facebook" []
+
+facebookIsACustomer =
+  facebook -: customer
+
+facebookIsACompany =
+  facebook -: company
+
+question =
+  pay facebook
+
+main = writeTPTP "q.p" ((facebookIsACompany :&: facebookIsACustomer :&: conjecture everyCustomerPays) :=>: conjecture question)
 
 {-
 
@@ -318,7 +339,7 @@ writeTPTP file p = writeFile file $ unlines $
   pp (Exi x p)   = "?[" ++ "V" ++ nm x ++ "]: " ++ pp p
   pp (p :&: q)   = "(" ++ pp p ++ " & " ++ pp q ++ ")"
   pp (p :=>: q)  = "(" ++ pp p ++ " => " ++ pp q ++ ")"
-  pp (Atom h ts) = pt (App h ts)
+  pp (Atom h ts) = pt (App ("p"++h) ts)
   
   pt (App f []) = nm f
   pt (App f ts) = nm f ++ "(" ++ intercalate "," (map pt ts) ++ ")"
