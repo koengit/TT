@@ -22,20 +22,32 @@ data TT
   = Pi Name TT TT
   | Sigma Name TT TT
   | Basic Name [Term]
+  | Or TT TT
+  | Equals Term Term
+  | Bottom
  deriving ( Eq, Ord )
+ 
+ -- And TT TT = Sigma "x" TT TT
 
 instance Show TT where
   show (Pi    x a b) = "(Π" ++ x ++ ":" ++ show a ++ ")" ++ show b
   show (Sigma x a b) = "(Σ" ++ x ++ ":" ++ show a ++ ")" ++ show b
   show (Basic h [])  = h
   show (Basic h xs)  = h ++ "(" ++ intercalate "," (map show xs) ++ ")"
+  show (Equals t1 t2) = show t1 ++ " = " ++ show t2 
+  show (Or a b) = show a ++ " + " ++  show b
+  show Bottom = "⊥"
 
 data FO
   = All Name FO
   | Exi Name FO
   | FO :&: FO
   | FO :=>: FO
+  | FO :||: FO
+  | Term :=: Term
   | Atom Name [Term]
+  | PTrue
+  | PFalse
  deriving ( Eq, Ord )
 
 instance Show FO where
@@ -43,24 +55,36 @@ instance Show FO where
   show (Exi x p)   = "∃" ++ x ++ "." ++ show p
   show (p :&: q)   = "(" ++ show p ++ " & " ++ show q ++ ")"
   show (p :=>: q)  = "(" ++ show p ++ " => " ++ show q ++ ")"
+  show (p :||: q)  = "(" ++ show p ++ " | " ++ show q ++ ")"
+  show (t1 :=: t2) = "(" ++ show t1 ++ " = " ++ show t2 ++ ")"
   show (Atom h []) = h
   show (Atom h xs) = h ++ "(" ++ intercalate "," (map show xs) ++ ")"
+  show PFalse = "false"
+  show PTrue  = "true"
 
 --------------------------------------------------------------------------------
 
 fo :: TT -> FO
 fo (Pi    x a b) = All x (proof x a b :=>: fo b)
 fo (Sigma x a b) = Exi x (proof x a b :&:  fo b)
+fo (Equals t1 t2) = t1 :=: t2
 fo (Basic h ts)  = Atom h ts
+fo (Or a b) = fo a :||: fo b 
+fo Bottom = PFalse
+
 
 proof :: Name -> TT -> TT -> FO
 proof x a b
   | x `elem` free b || needsProof a = Var x -: a
   | otherwise                       = fo a
- where
-  needsProof (Pi    _ _ b) = needsProof b
-  needsProof (Sigma _ _ b) = needsProof b
-  needsProof (Basic h _)   = isType h
+-- where
+
+needsProof (Pi    _ _ b) = needsProof b
+needsProof (Sigma _ _ b) = needsProof b
+needsProof (Basic h _)   = isType h
+needsProof (Or a b) = needsProof a || needsProof b
+needsProof _ = False
+
 
 (-:) :: Term -> TT -> FO
 --p -: Pi    x a b = error ("higher-order TT (" ++ show p ++ " : " ++ show (Pi x a b) ++ ")")
@@ -69,6 +93,9 @@ p -: Sigma x a b = (pp p -: a) :&: (qq p -: subst [(x,pp p)] b)
 p -: Basic h ts
   | isType h     = Atom h (ts ++ [p])
   | otherwise    = Atom h ts
+p -: Equals t1 t2 = t1 :=: t2 
+p -: Or a b  = (p -: a) :||: (p -: b)
+p -: Bottom = PFalse
 
 ap :: Term -> Term -> Term
 ap f x = App "$ap" [f,x]
@@ -130,6 +157,9 @@ instance Subst TT where
   free (Pi    x a b) = free (a, Bind x b)
   free (Sigma x a b) = free (a, Bind x b)
   free (Basic _ xs)  = free xs
+  free (Equals a b) = free (a,b)
+  free (Or a b) = free (a,b)
+  free Bottom = []
   
   names (Pi    x a b) = names (a, Bind x b)
   names (Sigma x a b) = names (a, Bind x b)
@@ -173,6 +203,8 @@ removePairs (Exi x p)   = Exi x (removePairs p)
 removePairs (p :&: q)   = removePairs p :&:  removePairs q
 removePairs (p :=>: q)  = removePairs p :=>: removePairs q
 removePairs (Atom h xs) = Atom h xs
+removePairs PTrue = PTrue
+removePairs PFalse = PFalse
 
 isPair :: Name -> FO -> Bool
 isPair x (All y p)   = x == y || isPair x p
@@ -180,6 +212,9 @@ isPair x (Exi y p)   = x == y || isPair x p
 isPair x (p :&: q)   = isPair x p && isPair x q
 isPair x (p :=>: q)  = isPair x p && isPair x q
 isPair x (Atom h xs) = all (isPairTerm x) xs
+isPair _ PFalse = False
+isPair _ PTrue = False
+
 
 isPairTerm :: Name -> Term -> Bool
 isPairTerm x (App f [t])
@@ -208,22 +243,70 @@ removePair quant x p
 
 --------------------------------------------------------------------------------
 
-man       = Basic "Man" []
-rich x    = Basic "rich" [x]
-donkey    = Basic "Donkey" []
-have  x y = Basic "has" [x,y]
-beats x y = Basic "beats" [x,y]
+notTT a   = Pi "notTT" a Bottom
+andTT a b = Sigma "andTT" a b
+orTT a b  = notTT (andTT (notTT a) (notTT b))
+
+man        = Basic "Man" []
+rich x     = Basic "rich" [x]
+donkey     = Basic "Donkey" []
+have  x y  = Basic "has" [x,y]
+get x y    = Basic "get" [x,y]
+beats x y  = Basic "beats" [x,y]
+opens x y  = Basic "opens" [x,y]
+equals x y = Equals x y
+
+child      = Basic "Child" []
+present    = Basic "Present" []    
+    
+constf x       = App "const" [x]
+override x y z = App "override" [x,y,z]
+
+
+piano      = App "piano" []
+pyssel     = App "pyssel" []
+vincent    = App "vincent" []
+irmeli     = App "irmeli" []
+
 
 aManHasADonkey = Sigma "x"
                    man
                    (Sigma "y"
                      donkey
                      (Var "x" `have` Var "y"))
+                     
+
+-- if all children get presents, there is a child that opens theirs
+ifAllGetPresentsSomeoneOpensTheirs = Pi "f" (Pi "x" child (Var "x" `get` (ap (Var "f") (Var "x")))) 
+         (Sigma "y" child (Var "y" `opens` (ap (Var "f") (Var "y"))))               
+                     
+allChildrenGetPresents = Pi "x" child
+                           (Sigma "y" present (Var "x" `get` Var "y"))
+                           
+-- A child is either Vincent or Irmeli                           
+onlyChildren = Pi "x" child (Or (equals (Var "x") vincent) ((equals (Var "x") irmeli)))
+
+-- A present is either piano or pyssel
+onlyPresents = Pi "x" present (Or (equals (Var "x") piano) ((equals (Var "x") pyssel)))
+
+--Vincent does not open any present
+vincentDoesntOpen = Pi "x" present (notTT (vincent `opens` (Var "x")))
+
+-- Irmeli doesn't get a piano
+irmeliDoesntGetPiano = notTT (irmeli `get` piano) 
+
+irmeliOpensPyssel = (irmeli `opens` pyssel)
+
+vincentIsAChild = vincent -: child 
+irmeliIsAChild  = irmeli -: child
+
+pysselIsAPresent = pyssel -: present
+pianoIsAPresent = piano -: present
 
 heBeatsIt p = pp p `beats` pp (qq p)
 
 ifAManHasADonkeyHeBeatsIt = Pi "c" aManHasADonkey (heBeatsIt (Var "c"))
-
+        
 allMenHaveADonkey = Pi "x" man (Sigma "y" donkey (Var "x" `have` Var "y"))
 
 higherOrder = Pi "x" man (Pi "_r" (Pi "y" donkey (Var "x" `have` Var "y")) (rich (Var "x"))) 
@@ -249,7 +332,13 @@ facebookIsACompany =
 question =
   pay facebook
 
-main = writeTPTP "q.p" ((facebookIsACompany :&: facebookIsACustomer :&: conjecture everyCustomerPays) :=>: conjecture question)
+-- main = writeTPTP "q.p" ((facebookIsACompany :&: facebookIsACustomer :&: conjecture everyCustomerPays) :=>: conjecture question)
+
+main2 = writeTPTP "q.p" 
+   [
+    fo onlyPresents, fo onlyChildren, vincentIsAChild, irmeliIsAChild, pysselIsAPresent, pianoIsAPresent,
+    fo ifAllGetPresentsSomeoneOpensTheirs, fo allChildrenGetPresents, fo vincentDoesntOpen, fo irmeliDoesntGetPiano  ]
+    (conjecture irmeliOpensPyssel)
 
 {-
 
@@ -328,18 +417,29 @@ quant qu t p =
 
 --------------------------------------------------------------------------------
 
-writeTPTP :: FilePath -> FO -> IO ()
-writeTPTP file p = writeFile file $ unlines $
+writeTPTP :: FilePath -> [FO] -> FO -> IO ()
+writeTPTP file ps p = writeFile file $ unlines $
+  ["fof(h,axiom, ![X,Y] : (sp_ap(const(Y),X) = Y)).",
+   "fof(i,axiom, ![F,X,Y] : sp_ap(override(F,X,Y),X) = Y).",
+   "fof(j,axiom, ![F,X,Y,Z] : (Z != X => (sp_ap(override(F,X,Y),Z) = sp_ap(F,Z))))."
+  ] ++ 
+  [   
+    "fof( a ,axiom, " ++ pp p' ++  " )." | p' <- ps] ++ 
+    
   [ "fof(conj, conjecture, "
   , "  " ++ pp p
   , ")."
   ]
  where
-  pp (All x p)   = "![" ++ "V" ++ nm x ++ "]: " ++ pp p
-  pp (Exi x p)   = "?[" ++ "V" ++ nm x ++ "]: " ++ pp p
+  pp (All x p)   = "(![" ++ "V" ++ nm x ++ "]: " ++ pp p ++ ")"
+  pp (Exi x p)   = "(?[" ++ "V" ++ nm x ++ "]: " ++ pp p ++ ")"
   pp (p :&: q)   = "(" ++ pp p ++ " & " ++ pp q ++ ")"
   pp (p :=>: q)  = "(" ++ pp p ++ " => " ++ pp q ++ ")"
   pp (Atom h ts) = pt (App ("p"++h) ts)
+  pp (t1 :=: t2) = pt t1 ++ " = " ++ pt t2
+  pp (p :||: q) = "(" ++ pp p ++ " | " ++ pp q ++ ")"
+  pp PFalse = "$false"
+  pp PTrue = "$true"
   
   pt (App f []) = nm f
   pt (App f ts) = nm f ++ "(" ++ intercalate "," (map pt ts) ++ ")"
