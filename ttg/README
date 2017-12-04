@@ -1,0 +1,34 @@
+TTG: Type-Theoretical Grammar semantics for GF Resource Grammar
+
+Started by AR 24/2/2017
+
+Try:
+
+  runghc TTG.hs <ex1.txt
+  
+  runghc TTG.hs <ex2.txt
+
+Functionality:
+- parse a text line by line
+- build a context with a fresh referent for each line (r0,r1,...)
+- translating each sentence to type theory
+  - in the context of the previous ones
+  - in the local context created by quantifiers
+
+
+Files:
+- Lang.hs         -- Haskell-internal abstract syntax built by Makefile
+- Lang.pgf        -- run-time grammar built by Makefile
+- Semantics.hs    -- compositional semantics
+- TTG.hs          -- the main module
+
+
+Notice: we assume that all atomic predicates are polymorhic, i.e.
+apply to individuals of all types.
+
+
+
+
+
+
+
