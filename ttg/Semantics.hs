@@ -42,6 +42,10 @@ prProp p = fst $ runState (prp p) initTTGState where
       sp <- prp p
       sq <- prp q
       return $ parenth $ unwords [sp,"&",sq] 
+    Impl p q -> do
+      sp <- prp p
+      sq <- prp q
+      return $ parenth $ unwords [sp,"->",sq] 
     Disj p q -> do
       sp <- prp p
       sq <- prp q
