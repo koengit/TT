@@ -431,6 +431,10 @@ writeTPTP file ps p = writeFile file $ unlines $
   , ")."
   ]
  where
+   pp = prTPTP
+
+prTPTP :: FO -> String
+prTPTP = pp where
   pp (All x p)   = "(![" ++ "V" ++ nm x ++ "]: " ++ pp p ++ ")"
   pp (Exi x p)   = "(?[" ++ "V" ++ nm x ++ "]: " ++ pp p ++ ")"
   pp (p :&: q)   = "(" ++ pp p ++ " & " ++ pp q ++ ")"
