@@ -9,7 +9,7 @@ import Data.List
 -- resolve anaphora
 
 resolve :: Context -> Prop -> Prop
-resolve ctx = res [(Var r,p) | (r,p) <- ctx] -- initialize with text context
+resolve ctx = res [(Const r [],p) | (r,p) <- ctx] -- initialize with text context
  where
   res :: [(Ind,Prop)] -> Prop -> Prop
   res xs p = case p of

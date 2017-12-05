@@ -19,7 +19,7 @@ interpret pgf s =
     treess = map (parse pgf (mkCId "LangEng") (startCat pgf)) phrs
     conts  = map (iPhrs . map fg) (sequence treess) ---- should not be expanded this way
     forms  = map prContext conts
-    fols   = [[(x,TT.fo (ttg2tt p)) | (x,p) <- co] | co <- conts]
+    fols   = [[(x,TT.App x [] TT.-: ttg2tt p) | (x,p) <- co] | co <- conts]
     tptps  = [[(x,TT.prTPTP p) | (x,p) <- co] | co <- fols]
   in unlines $
          forms 
