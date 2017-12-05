@@ -1,6 +1,6 @@
 module TTG2TT where
 
-import Semantics
+import TypeTheory
 import qualified TT as TT
 
 import Control.Monad.State
