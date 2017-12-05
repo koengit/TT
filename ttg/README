@@ -1,6 +1,10 @@
 TTG: Type-Theoretical Grammar semantics for GF Resource Grammar
 
-Started by AR 24/2/2017
+History:
+
+5/12      pipeline to Koen's TT->FOL transformation added
+4/12      moved to koengit
+24/2/2017 started by AR
 
 Try:
 
@@ -14,16 +18,16 @@ Functionality:
 - translating each sentence to type theory
   - in the context of the previous ones
   - in the local context created by quantifiers
-
+- convert the type-theoretical formulas to FOL and TPTP notation
 
 Files:
 - Lang.hs         -- Haskell-internal abstract syntax built by Makefile
 - Lang.pgf        -- run-time grammar built by Makefile
-- Semantics.hs    -- compositional semantics
+- Semantics.hs    -- compositional semantics and pronoun resolution
 - TTG.hs          -- the main module
+  TypeTheory.hs   -- the abstract syntax of type theory
 
-
-Notice: we assume that all atomic predicates are polymorhic, i.e.
+Notice: we assume that all atomic predicates are polymorphic, i.e.
 apply to individuals of all types.
 
 
