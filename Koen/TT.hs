@@ -27,15 +27,15 @@ data TT
   | Bottom
  deriving ( Eq, Ord )
  
- -- And TT TT = Sigma "x" TT TT
-
 instance Show TT where
-  show (Pi    x a b) = "(Π" ++ x ++ ":" ++ show a ++ ")" ++ show b
-  show (Sigma x a b) = "(Σ" ++ x ++ ":" ++ show a ++ ")" ++ show b
+  show (Pi    x a b) | not (x `elem` free b) = "(" ++ show a ++ " ==> " ++ show b ++ ")"
+                     | otherwise =  "(Π" ++ x ++ ":" ++ show a ++ ")" ++ show b
+  show (Sigma x a b) | not (x `elem` free b)  = "(" ++ show a ++ " & " ++ show b ++ ")"
+                     | otherwise = "(Σ" ++ x ++ ":" ++ show a ++ ")" ++ show b
   show (Basic h [])  = h
   show (Basic h xs)  = h ++ "(" ++ intercalate "," (map show xs) ++ ")"
   show (Equals t1 t2) = show t1 ++ " = " ++ show t2 
-  show (Or a b) = show a ++ " + " ++  show b
+  show (Or a b) = "(" ++ show a ++ " + " ++  show b ++ ")"
   show Bottom = "⊥"
 
 data FO
@@ -243,9 +243,10 @@ removePair quant x p
 
 --------------------------------------------------------------------------------
 
-notTT a   = Pi "notTT" a Bottom
-andTT a b = Sigma "andTT" a b
-orTT a b  = notTT (andTT (notTT a) (notTT b))
+notTT a    = Pi "notTT" a Bottom
+andTT a b  = Sigma "andTT" a b
+orTT a b   = notTT (andTT (notTT a) (notTT b))
+implTT a b = orTT (notTT a) b
 
 man        = Basic "Man" []
 rich x     = Basic "rich" [x]
@@ -275,7 +276,6 @@ aManHasADonkey = Sigma "x"
                      donkey
                      (Var "x" `have` Var "y"))
                      
-
 -- if all children get presents, there is a child that opens theirs
 ifAllGetPresentsSomeoneOpensTheirs = Pi "f" (Pi "x" child (Var "x" `get` (ap (Var "f") (Var "x")))) 
          (Sigma "y" child (Var "y" `opens` (ap (Var "f") (Var "y"))))               
@@ -301,7 +301,7 @@ vincentIsAChild = vincent -: child
 irmeliIsAChild  = irmeli -: child
 
 pysselIsAPresent = pyssel -: present
-pianoIsAPresent = piano -: present
+pianoIsAPresent  = piano -: present
 
 heBeatsIt p = pp p `beats` pp (qq p)
 
