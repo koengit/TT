@@ -81,6 +81,10 @@ iS s = case s of
   GConjS c (GListS ss) -> foldl1 (iConj c) (map iS ss)
   _ -> notyet s
 
+iQS :: GQS -> Prop ---- TODO proper type
+iQS qs = case qs of
+  GUseQCl _ pol cl -> iPol pol (iQCl cl)
+
 iRS :: GRS -> Ind -> Prop
 iRS rs x = case rs of
   GUseRCl _ pol rcl -> iPol pol (iRCl rcl x)
@@ -93,7 +97,13 @@ iPol p s = case p of
 
 iCl :: GCl -> Prop
 iCl s = case s of
-  GPredVP np vp -> iNP np (iVP vp)
+  GPredVP np vp   -> iNP np (iVP vp)
+  GPredSCVP sc vp -> Sigma (iSC sc) (iVP vp)  --- sentence subject by existential 
+  _ -> notyet s
+
+iQCl :: GQCl -> Prop
+iQCl s = case s of
+  GQuestCl cl   -> iCl cl
   _ -> notyet s
 
 iRCl :: GRCl -> Ind -> Prop
@@ -107,6 +117,12 @@ iClSlash s x = case s of
   GSlashVP np vps -> iNP np (\y -> iVPSlash vps y x)
   _ -> notyet s
 
+iSC :: GSC -> Prop
+iSC sc = case sc of
+  GEmbedS  s  -> iS s
+  GEmbedQS qs -> iQS qs
+  _ -> notyet sc
+  
 iVP :: GVP -> Ind -> Prop
 iVP vp x = case vp of
   GComplSlash vps np -> iNP np (\y -> iVPSlash vps x y)
@@ -150,6 +166,7 @@ iCN :: GCN -> Prop
 iCN cn = case cn of
   GRelCN cn rs -> Sigma (iCN cn) (\x -> iRS rs x) 
   GAdjCN ap cn -> Sigma (iCN cn) (\x -> iAP ap x)
+  GApposCN cn np -> iCN cn ---- TODO: semantics of apposition
   GUseN (LexN n) -> Atom n []
   _ -> notyet cn
 
