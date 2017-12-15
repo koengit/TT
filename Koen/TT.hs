@@ -164,10 +164,16 @@ instance Subst TT where
   names (Pi    x a b) = names (a, Bind x b)
   names (Sigma x a b) = names (a, Bind x b)
   names (Basic _ xs)  = names xs
-  
+  names (Or a b) = names a `union` names b
+  names (Equals a b) = names a `union` names b
+  names Bottom = []
+
   subst sub (Pi    x a b) = let (a',Bind x' b') = subst sub (a,Bind x b) in Pi x' a' b'
   subst sub (Sigma x a b) = let (a',Bind x' b') = subst sub (a,Bind x b) in Sigma x' a' b'
   subst sub (Basic h xs)  = Basic h (subst sub xs)
+  subst sub (Or a b) = Or (subst sub a) (subst sub b)
+  subst sub (Equals a b) = Equals (subst sub a) (subst sub b)
+  subst sub Bottom = Bottom
 
 instance Subst FO where
   free (All x p)   = free (Bind x p)
