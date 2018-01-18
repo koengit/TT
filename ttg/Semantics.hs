@@ -8,13 +8,15 @@ import Data.List
 
 -- resolve anaphora
 
-resolve :: Context -> Prop -> Prop
-resolve ctx = res [(Const r [],p) | (r,p) <- ctx] -- initialize with text context
+type GenderList = [(String,String)]
+
+resolve :: GenderList -> Context -> Prop -> Prop
+resolve genders ctx = res [(Const r [],p) | (r,p) <- ctx] -- initialize with text context
  where
   res :: [(Ind,Prop)] -> Prop -> Prop
   res xs p = case p of
-    Sigma p f -> let rp = res xs p in Sigma rp (\x -> res ((x,rp) : xs) (f x))
-    Pi    p f -> let rp = res xs p in Pi    rp (\x -> res ((x,rp) : xs) (f x))
+    Sigma p f -> let rp = res xs p in Sigma rp (\x -> res ((x,rp) +: xs) (f x))
+    Pi    p f -> let rp = res xs p in Pi    rp (\x -> res ((x,rp) +: xs) (f x))
     Atom f ys -> Atom f $ map (resInd xs) ys
     Conj a b  -> Conj (res xs a) (res xs b)
     _ -> p
@@ -22,11 +24,18 @@ resolve ctx = res [(Const r [],p) | (r,p) <- ctx] -- initialize with text contex
   resInd xs i = case i of
     Const f ts -> Const f (map (resInd xs) ts)
     Def  typ [] -> ifUnique (Def typ)  [px x | (x,t) <- xs, px <- refsDef  typ t]
-    Pron pro [] -> ifUnique (Pron pro) [px x | (x,t) <- xs, px <- refsPron pro t]
+    Pron pro [] -> ifUnique (Pron pro) [px x | (x,t) <- xs, px <- refsPron genders pro t]
     _ -> i
   ifUnique f xs = case xs of
     [x] -> x
     _ -> f xs
+    
+(+:) :: (Ind,Prop) -> [(Ind,Prop)] -> [(Ind,Prop)]
+(+:) (i,p) ips = (i,p):ips ++ [ (Const "ap" [i,j], b j) | Pi a b <- [p], (j,a') <- ips, a =:= a' ] ++
+                              [ (Const "ap" [j,i], b i) | (j,Pi a b) <- ips, a =:= p ]
+  where
+     Atom a [] =:= Atom b [] = a == b
+     _ =:= _  = False 
 
 refsDef :: Prop -> Prop -> [Ind -> Ind]
 refsDef sought given = seek 0 sought given where
@@ -37,26 +46,29 @@ refsDef sought given = seek 0 sought given where
 
 compP h = \x -> h (Const "p" [x])
 compQ h = \x -> h (Const "q" [x])
+
     
-refsPron :: Gender -> Prop -> [Ind -> Ind]
-refsPron sought given = refsDef (Atom sought []) (typeToGenders given)
+refsPron :: GenderList -> Gender -> Prop -> [Ind -> Ind]
+refsPron genders sought given = refsDef (Atom sought []) (typeToGenders genders given)
 
 ---- TODO: get this language-dependent definition from the grammar
-typeToGenders :: Prop -> Prop
-typeToGenders p = case p of
-  Atom a []
-    | elem a ["woman_N","girl_N","mother_N","daughter_N"] -> Atom "Fem" []
-    | elem a ["man_N","boy_N","father_N","son_N"] -> Atom "Masc" []
-    | otherwise -> Atom "Neutr" []
-  Sigma a f -> Sigma (typeToGenders a) (\x -> typeToGenders (f x))
-  _ -> p  --- no references outside atom and sigma
+typeToGenders :: GenderList -> Prop -> Prop
+typeToGenders genlist p = case p of
+ Atom a []   -> case lookup a genlist of
+                  Nothing -> Atom "Neutr" []
+                  Just g  -> Atom g []
+--    | elem a ["woman_N","girl_N","mother_N","daughter_N"] -> Atom "Fem" []
+--    | elem a ["man_N","boy_N","father_N","son_N", "doctor_N"] -> Atom "Masc" []
+--    | otherwise -> Atom "Neutr" []
+ Sigma a f -> Sigma (typeToGenders genlist a) (\x -> typeToGenders genlist (f x))
+ _ -> p  --- no references outside atom and sigma
 
 -- interpret a text as a list of phrases
-iPhrs :: [GPhr] -> Context
-iPhrs ps = res [] (zip ["r" ++ show i | i <- [0..]] ps)
+iPhrs :: GenderList -> [GPhr] -> Context
+iPhrs genders ps = res [] (zip ["r" ++ show i | i <- [0..]] ps)
  where
   res ctx rps = case rps of
-    (r,p) : ps -> let p' = resolve ctx (iPhr p) in (r,p') : res ((r,p'):ctx) ps
+    (r,p) : ps -> let p' = resolve genders ctx (iPhr p) in (r,p') : res ((r,p'):ctx) ps
     _ -> []
 
 notyet :: Show a => a -> b
@@ -99,6 +111,7 @@ iCl :: GCl -> Prop
 iCl s = case s of
   GPredVP np vp   -> iNP np (iVP vp)
   GPredSCVP sc vp -> Sigma (iSC sc) (iVP vp)  --- sentence subject by existential 
+  GImpersCl vp -> iVP vp (Pron (iPron (Git_Pron)) [] ) -- is this OK?
   _ -> notyet s
 
 iQCl :: GQCl -> Prop
@@ -148,7 +161,9 @@ iNP np p = case np of
   GConjNP c (GListNP nps) -> foldl1 (iConj c) (map (flip iNP p) nps)
   GUsePron r -> p (Pron (iPron r) [])
   GUsePN (LexPN s) -> p (Const s [])
-
+  GDetNP (GDetQuant GDefArt GNumSg) -> p (Pron (iPron (Git_Pron)) [])
+  _ -> notyet np
+  
 -- reducing pronoun to gender ---- English-specific
 iPron :: GPron -> Gender
 iPron p = case p of
@@ -161,6 +176,7 @@ iDet det t p = case det of
   GsomeSg_Det -> Sigma t p
   Gevery_Det -> Pi t p
   GDetQuant GIndefArt _ -> Sigma t p --- non-compositional
+ --  GDetQuant GDefArt GNumSg   -> notyet det
   
 iCN :: GCN -> Prop
 iCN cn = case cn of

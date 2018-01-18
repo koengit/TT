@@ -54,5 +54,6 @@ ttInd i = case i of
   where
     trans "p" = "$p"
     trans "q" = "$q"
+    trans "ap" = "$ap"
     trans s   = s
 

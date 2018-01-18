@@ -1,5 +1,6 @@
-a man sees a woman
-the woman walks
+a doctor sees a girl
+the girl walks
+he walks
 she walks
-the man sleeps
+the doctor sleeps
 he sleeps
